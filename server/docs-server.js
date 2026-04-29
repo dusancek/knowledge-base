@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 
 const docsRoot = join(process.cwd(), 'docs')
@@ -62,12 +62,13 @@ const listMarkdownFiles = async (directory = docsRoot, prefix = '') => {
       files.push(...(await listMarkdownFiles(fullPath, path)))
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
       const content = await readFile(fullPath, 'utf8')
+      const { mtimeMs } = await stat(fullPath)
       files.push({
         id: path,
         path,
         title: getDocTitle(content, entry.name),
         content,
-        updatedAt: Date.now(),
+        updatedAt: mtimeMs,
       })
     }
   }

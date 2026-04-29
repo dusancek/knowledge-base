@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { EditorContent, useEditor } from '@tiptap/react'
+import { BubbleMenu, EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { marked } from 'marked'
 import TurndownService from 'turndown'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeSlug from 'rehype-slug'
-import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import {
   Bold,
   BookOpen,
@@ -31,6 +27,7 @@ import './App.css'
 
 const API_URL = import.meta.env.VITE_DOCS_API_URL ?? 'http://127.0.0.1:8787'
 const READ_ONLY = import.meta.env.PROD
+
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })
 
 turndown.addRule('strikethrough', {
@@ -51,13 +48,12 @@ const getDocTitle = (content, fallback) => {
 }
 
 const markdownToHtml = (markdown) =>
-  marked.parse(markdown || '', {
-    async: false,
-    gfm: true,
-    breaks: false,
-  })
+  marked.parse(markdown || '', { async: false, gfm: true, breaks: false })
 
 const htmlToMarkdown = (html) => `${turndown.turndown(html).trim()}\n`
+
+const formatDate = (ts) =>
+  new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
 const createTree = (items) => {
   const root = []
@@ -154,17 +150,70 @@ function TreeItem({ item, activeId, onSelect, depth = 0, query }) {
   )
 }
 
-function ToolbarButton({ active, label, onClick, children }) {
+function BubbleToolbar({ editor }) {
+  if (!editor) return null
+
   return (
-    <button
-      type="button"
-      className={`toolbar-button ${active ? 'active' : ''}`}
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-    >
-      {children}
-    </button>
+    <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
+      <div className="bubble-menu">
+        <button
+          type="button"
+          className={editor.isActive('bold') ? 'active' : ''}
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run() }}
+          title="Bold"
+        >
+          <Bold size={14} />
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('italic') ? 'active' : ''}
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run() }}
+          title="Italic"
+        >
+          <Italic size={14} />
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('heading', { level: 2 }) ? 'active' : ''}
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHeading({ level: 2 }).run() }}
+          title="Heading"
+        >
+          <Heading2 size={14} />
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('bulletList') ? 'active' : ''}
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run() }}
+          title="Bullet list"
+        >
+          <List size={14} />
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('orderedList') ? 'active' : ''}
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleOrderedList().run() }}
+          title="Numbered list"
+        >
+          <ListOrdered size={14} />
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('blockquote') ? 'active' : ''}
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBlockquote().run() }}
+          title="Quote"
+        >
+          <Quote size={14} />
+        </button>
+        <button
+          type="button"
+          className={editor.isActive('codeBlock') ? 'active' : ''}
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleCodeBlock().run() }}
+          title="Code block"
+        >
+          <Code size={14} />
+        </button>
+      </div>
+    </BubbleMenu>
   )
 }
 
@@ -173,7 +222,6 @@ function App() {
   const [activeId, setActiveId] = useState('')
   const [query, setQuery] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [mode, setMode] = useState(READ_ONLY ? 'preview' : 'edit')
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const [status, setStatus] = useState('Loading docs')
 
@@ -187,14 +235,13 @@ function App() {
     extensions: [
       StarterKit,
       Placeholder.configure({
-        placeholder: 'Start writing. Your Markdown file is saved locally.',
+        placeholder: 'Start writing…',
       }),
     ],
     content: '',
+    editable: !READ_ONLY,
     editorProps: {
-      attributes: {
-        class: 'tiptap-editor',
-      },
+      attributes: { class: 'tiptap-editor' },
     },
     onUpdate({ editor: currentEditor }) {
       setDraftMarkdown(htmlToMarkdown(currentEditor.getHTML()))
@@ -227,11 +274,10 @@ function App() {
   useEffect(() => {
     if (!editor || !activeDoc) return
 
-    const content = activeDoc.content
     const html = markdownToHtml(activeDoc.content)
     editor.commands.setContent(html, false)
     queueMicrotask(() => {
-      setDraftMarkdown(content)
+      setDraftMarkdown(activeDoc.content)
       setStatus('Saved')
     })
   }, [activeDoc, editor])
@@ -239,7 +285,7 @@ function App() {
   const saveDoc = async () => {
     if (!activeDoc) return
 
-    setStatus('Saving')
+    setStatus('Saving…')
 
     try {
       const response = await fetch(`${API_URL}/api/docs/content`, {
@@ -258,11 +304,12 @@ function App() {
                 ...doc,
                 content: draftMarkdown,
                 title: getDocTitle(draftMarkdown, doc.path.split('/').at(-1)),
+                updatedAt: Date.now(),
               }
             : doc,
         ),
       )
-      setStatus(`Saved ${activeDoc.path}`)
+      setStatus('Saved')
     } catch (error) {
       setStatus(error.message)
     }
@@ -275,7 +322,7 @@ function App() {
     const path = filename.endsWith('.md') ? filename : `${filename}.md`
     const content = `# ${titleize(path.split('/').at(-1))}\n\n`
 
-    setStatus('Creating')
+    setStatus('Creating…')
 
     try {
       const response = await fetch(`${API_URL}/api/docs`, {
@@ -292,6 +339,7 @@ function App() {
         path: data.doc.path,
         title: data.doc.title,
         content: data.doc.content,
+        updatedAt: Date.now(),
       }
 
       setDocs((current) =>
@@ -300,8 +348,7 @@ function App() {
         ),
       )
       setActiveId(doc.id)
-      setMode('edit')
-      setStatus(`Created ${doc.path}`)
+      setStatus('Saved')
     } catch (error) {
       setStatus(error.message)
     }
@@ -359,7 +406,7 @@ function App() {
         </nav>
       </aside>
 
-      <main className="reader editor-reader">
+      <main className="reader">
         <button
           type="button"
           className="sidebar-toggle"
@@ -372,135 +419,27 @@ function App() {
 
         {activeDoc ? (
           <>
-            <div className="reader-topline editor-topline">
-              <span>{activeDoc.path}</span>
-              <span>{status}</span>
+            <div className="doc-topline">
+              <div className="doc-meta">
+                <span className="doc-path">{activeDoc.path}</span>
+                {activeDoc.updatedAt && (
+                  <span className="doc-date">Last edited {formatDate(activeDoc.updatedAt)}</span>
+                )}
+              </div>
+              <div className="doc-actions">
+                <span className="doc-status">{status}</span>
+                {!READ_ONLY && (
+                  <button type="button" className="save-button" onClick={saveDoc}>
+                    <Save size={15} />
+                    <span>Save</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="editor-shell">
-              <div className="editor-toolbar">
-                {READ_ONLY && (
-                  <div className="toolbar-group">
-                    <span style={{ fontSize: '0.75rem', opacity: 0.5, padding: '0 4px' }}>Read-only</span>
-                  </div>
-                )}
-                <div className="toolbar-group" style={READ_ONLY ? { display: 'none' } : {}}>
-                  <ToolbarButton
-                    label="Bold"
-                    active={editor?.isActive('bold')}
-                    onClick={() => editor?.chain().focus().toggleBold().run()}
-                  >
-                    <Bold size={16} />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Italic"
-                    active={editor?.isActive('italic')}
-                    onClick={() => editor?.chain().focus().toggleItalic().run()}
-                  >
-                    <Italic size={16} />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Heading"
-                    active={editor?.isActive('heading', { level: 2 })}
-                    onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-                  >
-                    <Heading2 size={16} />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Bullet list"
-                    active={editor?.isActive('bulletList')}
-                    onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                  >
-                    <List size={16} />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Numbered list"
-                    active={editor?.isActive('orderedList')}
-                    onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-                  >
-                    <ListOrdered size={16} />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Quote"
-                    active={editor?.isActive('blockquote')}
-                    onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-                  >
-                    <Quote size={16} />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Code block"
-                    active={editor?.isActive('codeBlock')}
-                    onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-                  >
-                    <Code size={16} />
-                  </ToolbarButton>
-                </div>
-
-                <div className="toolbar-group">
-                  <div className="mode-switch" aria-label="Editor mode">
-                    {!READ_ONLY && (
-                      <button
-                        type="button"
-                        className={mode === 'edit' ? 'active' : ''}
-                        onClick={() => setMode('edit')}
-                      >
-                        Edit
-                      </button>
-                    )}
-                    {!READ_ONLY && (
-                      <button
-                        type="button"
-                        className={mode === 'markdown' ? 'active' : ''}
-                        onClick={() => setMode('markdown')}
-                      >
-                        Markdown
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className={mode === 'preview' ? 'active' : ''}
-                      onClick={() => setMode('preview')}
-                    >
-                      Preview
-                    </button>
-                  </div>
-
-                  {!READ_ONLY && (
-                    <button type="button" className="save-button" onClick={saveDoc}>
-                      <Save size={16} />
-                      <span>Save</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {mode === 'edit' ? (
-                <EditorContent editor={editor} />
-              ) : mode === 'markdown' ? (
-                <textarea
-                  className="markdown-source"
-                  value={draftMarkdown}
-                  onChange={(event) => {
-                    const value = event.target.value
-                    setDraftMarkdown(value)
-                    editor?.commands.setContent(markdownToHtml(value), false)
-                    setStatus('Unsaved changes')
-                  }}
-                  spellCheck="false"
-                />
-              ) : (
-                <article className="markdown-body preview-body">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[
-                      rehypeSlug,
-                      [rehypeAutolinkHeadings, { behavior: 'wrap' }],
-                    ]}
-                  >
-                    {draftMarkdown}
-                  </ReactMarkdown>
-                </article>
-              )}
+              {!READ_ONLY && <BubbleToolbar editor={editor} />}
+              <EditorContent editor={editor} />
             </div>
           </>
         ) : (

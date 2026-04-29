@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -29,8 +29,8 @@ async function listMarkdownFiles(directory = docsRoot, prefix = '') {
     if (entry.isDirectory()) {
       files.push(...(await listMarkdownFiles(fullPath, path)))
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      const content = await readFile(fullPath, 'utf8')
-      files.push({ id: path, path, title: getDocTitle(content, entry.name), content })
+      const [content, { mtimeMs }] = await Promise.all([readFile(fullPath, 'utf8'), stat(fullPath)])
+      files.push({ id: path, path, title: getDocTitle(content, entry.name), content, updatedAt: mtimeMs })
     }
   }
 
