@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BubbleMenu, EditorContent, useEditor } from '@tiptap/react'
+import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { marked } from 'marked'
@@ -150,70 +150,31 @@ function TreeItem({ item, activeId, onSelect, depth = 0, query }) {
   )
 }
 
-function BubbleToolbar({ editor }) {
+function EditorToolbar({ editor }) {
   if (!editor) return null
 
+  const btn = (label, isActive, action, icon) => (
+    <button
+      type="button"
+      className={`toolbar-btn ${isActive ? 'active' : ''}`}
+      onMouseDown={(e) => { e.preventDefault(); action() }}
+      title={label}
+    >
+      {icon}
+    </button>
+  )
+
   return (
-    <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
-      <div className="bubble-menu">
-        <button
-          type="button"
-          className={editor.isActive('bold') ? 'active' : ''}
-          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run() }}
-          title="Bold"
-        >
-          <Bold size={14} />
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('italic') ? 'active' : ''}
-          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run() }}
-          title="Italic"
-        >
-          <Italic size={14} />
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('heading', { level: 2 }) ? 'active' : ''}
-          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHeading({ level: 2 }).run() }}
-          title="Heading"
-        >
-          <Heading2 size={14} />
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('bulletList') ? 'active' : ''}
-          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run() }}
-          title="Bullet list"
-        >
-          <List size={14} />
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('orderedList') ? 'active' : ''}
-          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleOrderedList().run() }}
-          title="Numbered list"
-        >
-          <ListOrdered size={14} />
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('blockquote') ? 'active' : ''}
-          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBlockquote().run() }}
-          title="Quote"
-        >
-          <Quote size={14} />
-        </button>
-        <button
-          type="button"
-          className={editor.isActive('codeBlock') ? 'active' : ''}
-          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleCodeBlock().run() }}
-          title="Code block"
-        >
-          <Code size={14} />
-        </button>
-      </div>
-    </BubbleMenu>
+    <div className="editor-toolbar">
+      {btn('Bold', editor.isActive('bold'), () => editor.chain().focus().toggleBold().run(), <Bold size={15} />)}
+      {btn('Italic', editor.isActive('italic'), () => editor.chain().focus().toggleItalic().run(), <Italic size={15} />)}
+      <span className="toolbar-divider" />
+      {btn('Heading', editor.isActive('heading', { level: 2 }), () => editor.chain().focus().toggleHeading({ level: 2 }).run(), <Heading2 size={15} />)}
+      {btn('Bullet list', editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), <List size={15} />)}
+      {btn('Numbered list', editor.isActive('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), <ListOrdered size={15} />)}
+      {btn('Quote', editor.isActive('blockquote'), () => editor.chain().focus().toggleBlockquote().run(), <Quote size={15} />)}
+      {btn('Code block', editor.isActive('codeBlock'), () => editor.chain().focus().toggleCodeBlock().run(), <Code size={15} />)}
+    </div>
   )
 }
 
@@ -407,38 +368,52 @@ function App() {
       </aside>
 
       <main className="reader">
-        <button
-          type="button"
-          className="sidebar-toggle"
-          onClick={() => setSidebarOpen((value) => !value)}
-          aria-label={sidebarOpen ? 'Hide navigation' : 'Show navigation'}
-          title={sidebarOpen ? 'Hide navigation' : 'Show navigation'}
-        >
-          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-        </button>
+        <header className="doc-header">
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={() => setSidebarOpen((value) => !value)}
+            aria-label={sidebarOpen ? 'Hide navigation' : 'Show navigation'}
+            title={sidebarOpen ? 'Hide navigation' : 'Show navigation'}
+          >
+            {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+          </button>
 
-        {activeDoc ? (
-          <>
-            <div className="doc-topline">
-              <div className="doc-meta">
-                <span className="doc-path">{activeDoc.path}</span>
+          {activeDoc && (
+            <>
+              <div className="doc-breadcrumb">
+                {activeDoc.path.split('/').map((part, i, arr) => (
+                  <span key={i} className="breadcrumb-item">
+                    {i < arr.length - 1 ? (
+                      <span className="breadcrumb-folder">{titleize(part)}</span>
+                    ) : (
+                      <span className="breadcrumb-file">{activeDoc.title}</span>
+                    )}
+                    {i < arr.length - 1 && <ChevronRight size={13} className="breadcrumb-sep" />}
+                  </span>
+                ))}
                 {activeDoc.updatedAt && (
-                  <span className="doc-date">Last edited {formatDate(activeDoc.updatedAt)}</span>
+                  <span className="breadcrumb-date">· Last edited {formatDate(activeDoc.updatedAt)}</span>
                 )}
               </div>
+
               <div className="doc-actions">
-                <span className="doc-status">{status}</span>
+                {!READ_ONLY && <span className="doc-status">{status}</span>}
                 {!READ_ONLY && (
                   <button type="button" className="save-button" onClick={saveDoc}>
-                    <Save size={15} />
+                    <Save size={14} />
                     <span>Save</span>
                   </button>
                 )}
               </div>
-            </div>
+            </>
+          )}
+        </header>
 
+        {activeDoc ? (
+          <>
             <div className="editor-shell">
-              {!READ_ONLY && <BubbleToolbar editor={editor} />}
+              {!READ_ONLY && <EditorToolbar editor={editor} />}
               <EditorContent editor={editor} />
             </div>
           </>
