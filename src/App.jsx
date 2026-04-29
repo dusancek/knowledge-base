@@ -30,6 +30,7 @@ import {
 import './App.css'
 
 const API_URL = import.meta.env.VITE_DOCS_API_URL ?? 'http://127.0.0.1:8787'
+const READ_ONLY = import.meta.env.PROD
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })
 
 turndown.addRule('strikethrough', {
@@ -172,7 +173,7 @@ function App() {
   const [activeId, setActiveId] = useState('')
   const [query, setQuery] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [mode, setMode] = useState('edit')
+  const [mode, setMode] = useState(READ_ONLY ? 'preview' : 'edit')
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const [status, setStatus] = useState('Loading docs')
 
@@ -204,7 +205,10 @@ function App() {
   useEffect(() => {
     async function loadDocs() {
       try {
-        const response = await fetch(`${API_URL}/api/docs`)
+        const url = READ_ONLY
+          ? `${import.meta.env.BASE_URL}docs-manifest.json`
+          : `${API_URL}/api/docs`
+        const response = await fetch(url)
         const data = await response.json()
 
         if (!response.ok) throw new Error(data.error ?? 'Could not load docs')
@@ -326,12 +330,14 @@ function App() {
           />
         </label>
 
-        <div className="sidebar-actions">
-          <button type="button" className="new-doc-button" onClick={createDoc}>
-            <FilePlus2 size={16} />
-            <span>New note</span>
-          </button>
-        </div>
+        {!READ_ONLY && (
+          <div className="sidebar-actions">
+            <button type="button" className="new-doc-button" onClick={createDoc}>
+              <FilePlus2 size={16} />
+              <span>New note</span>
+            </button>
+          </div>
+        )}
 
         <div className="sidebar-meta">
           <span>{visibleCount} files</span>
@@ -373,7 +379,12 @@ function App() {
 
             <div className="editor-shell">
               <div className="editor-toolbar">
-                <div className="toolbar-group">
+                {READ_ONLY && (
+                  <div className="toolbar-group">
+                    <span style={{ fontSize: '0.75rem', opacity: 0.5, padding: '0 4px' }}>Read-only</span>
+                  </div>
+                )}
+                <div className="toolbar-group" style={READ_ONLY ? { display: 'none' } : {}}>
                   <ToolbarButton
                     label="Bold"
                     active={editor?.isActive('bold')}
@@ -427,20 +438,24 @@ function App() {
 
                 <div className="toolbar-group">
                   <div className="mode-switch" aria-label="Editor mode">
-                    <button
-                      type="button"
-                      className={mode === 'edit' ? 'active' : ''}
-                      onClick={() => setMode('edit')}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className={mode === 'markdown' ? 'active' : ''}
-                      onClick={() => setMode('markdown')}
-                    >
-                      Markdown
-                    </button>
+                    {!READ_ONLY && (
+                      <button
+                        type="button"
+                        className={mode === 'edit' ? 'active' : ''}
+                        onClick={() => setMode('edit')}
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {!READ_ONLY && (
+                      <button
+                        type="button"
+                        className={mode === 'markdown' ? 'active' : ''}
+                        onClick={() => setMode('markdown')}
+                      >
+                        Markdown
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={mode === 'preview' ? 'active' : ''}
@@ -450,10 +465,12 @@ function App() {
                     </button>
                   </div>
 
-                  <button type="button" className="save-button" onClick={saveDoc}>
-                    <Save size={16} />
-                    <span>Save</span>
-                  </button>
+                  {!READ_ONLY && (
+                    <button type="button" className="save-button" onClick={saveDoc}>
+                      <Save size={16} />
+                      <span>Save</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
